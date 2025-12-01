@@ -30,9 +30,19 @@ import torch
 import xxhash
 from FlagEmbedding import FlagAutoModel
 from pymilvus import AnnSearchRequest, Collection, WeightedRanker, connections
+from pymilvus.exceptions import MilvusException
 from tqdm import tqdm
 
 LOGGER = logging.getLogger("export_clapnq")
+
+DEFAULT_COLLECTION = os.getenv("MILVUS_COLLECTION", "Clapnq_BGE")
+DEFAULT_COLLECTION_TAG = os.getenv(
+    "COLLECTION_TAG", "mt-rag-clapnq-elser-512-100-20240503"
+)
+DEFAULT_MILVUS_HOST = os.getenv("MILVUS_HOST", "1.92.82.153")
+DEFAULT_MILVUS_PORT = os.getenv("MILVUS_PORT", "19530")
+DEFAULT_MILVUS_DB = os.getenv("MILVUS_DB", "peng")
+DEFAULT_MILVUS_ALIAS = os.getenv("MILVUS_ALIAS", "peng_conn")
 
 # ---------------------------------------------------------------------------
 # Tokenization + BM25 helpers (adapted from the ingestion pipeline)
@@ -245,7 +255,19 @@ def connect_milvus(host: str, port: str, alias: str, db_name: Optional[str] = No
     kwargs = {"alias": alias, "host": host, "port": port}
     if db_name:
         kwargs["db_name"] = db_name
-    connections.connect(**kwargs)
+    LOGGER.info(
+        "Connecting to Milvus at %s:%s (alias=%s, db=%s)",
+        host,
+        port,
+        alias,
+        db_name or "<default>",
+    )
+    try:
+        connections.connect(**kwargs)
+    except MilvusException as exc:
+        raise RuntimeError(
+            "无法连接到 Milvus，请检查 --milvus_host/--milvus_port/网络连通性"
+        ) from exc
 
 
 def run_search(
@@ -405,13 +427,11 @@ def parse_args() -> argparse.Namespace:
         default="outputs/clapnq_predictions.jsonl",
     )
 
-    parser.add_argument(
-        "--collection_name", type=str, default=os.getenv("MILVUS_COLLECTION", "clapnq")
-    )
+    parser.add_argument("--collection_name", type=str, default=DEFAULT_COLLECTION)
     parser.add_argument(
         "--collection_tag",
         type=str,
-        default="mt-rag-clapnq-elser-512-100-20240503",
+        default=DEFAULT_COLLECTION_TAG,
         help="Value for the Collection field in the output JSONL",
     )
     parser.add_argument("--top_k", type=int, default=50)
@@ -419,10 +439,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--include_title", action="store_true")
     parser.add_argument("--include_text", action="store_true")
 
-    parser.add_argument("--milvus_host", type=str, default=os.getenv("MILVUS_HOST", "localhost"))
-    parser.add_argument("--milvus_port", type=str, default=os.getenv("MILVUS_PORT", "19530"))
-    parser.add_argument("--milvus_db", type=str, default=os.getenv("MILVUS_DB"))
-    parser.add_argument("--milvus_alias", type=str, default=os.getenv("MILVUS_ALIAS", "clapnq_conn"))
+    parser.add_argument("--milvus_host", type=str, default=DEFAULT_MILVUS_HOST)
+    parser.add_argument("--milvus_port", type=str, default=DEFAULT_MILVUS_PORT)
+    parser.add_argument("--milvus_db", type=str, default=DEFAULT_MILVUS_DB)
+    parser.add_argument("--milvus_alias", type=str, default=DEFAULT_MILVUS_ALIAS)
 
     parser.add_argument("--model_name", type=str, default=os.getenv("BGE_MODEL_NAME", "BAAI/bge-small-en"))
     parser.add_argument("--bge_batch_size", type=int, default=int(os.getenv("BGE_BATCH_SIZE", "32")))
