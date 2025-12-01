@@ -43,6 +43,9 @@ DEFAULT_MILVUS_HOST = os.getenv("MILVUS_HOST", "1.92.82.153")
 DEFAULT_MILVUS_PORT = os.getenv("MILVUS_PORT", "19530")
 DEFAULT_MILVUS_DB = os.getenv("MILVUS_DB", "peng")
 DEFAULT_MILVUS_ALIAS = os.getenv("MILVUS_ALIAS", "peng_conn")
+DEFAULT_BM25_CACHE = os.getenv(
+    "BM25_CACHE", str(Path("corpora/passage_level/clapnq_bm25.pkl"))
+)
 
 # ---------------------------------------------------------------------------
 # Tokenization + BM25 helpers (adapted from the ingestion pipeline)
@@ -450,7 +453,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--bm25_cache",
         type=str,
-        default=os.getenv("BM25_CACHE", "~/.cache/mt_rag/clapnq_bm25.pkl"),
+        default=DEFAULT_BM25_CACHE,
     )
     parser.add_argument(
         "--corpus_jsonl",
